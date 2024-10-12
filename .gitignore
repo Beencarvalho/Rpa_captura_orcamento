@@ -1,5 +1,6 @@
-# Created by https://www.toptal.com/developers/gitignore/api/python,venv
-# Edit at https://www.toptal.com/developers/gitignore?templates=python,venv
+app/util/api_token.py
+api_token.py
+
 
 ### Python ###
 # Byte-compiled / optimized / DLL files

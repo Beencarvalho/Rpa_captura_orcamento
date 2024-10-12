@@ -9,7 +9,7 @@ api_budget_months = "https://apisgo.santacasaba.org.br/budget-months/get-by-budg
 
 
 # Token de autenticação
-token = '.'
+token = '82cbaca5-a606-4d50-8b3d-707c97d9186d'
 
 # Cabeçalhos da requisição, incluindo o token de autorização
 headers = {
