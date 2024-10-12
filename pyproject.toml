@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "orçamento-sgo"
+version = "0.1.0"
+description = ""
+authors = ["Breno Carvalho <beencarvalho@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.14"
+pandas = "^2.2.3"
+blue = "^0.9.1"
+requests = "^2.32.3"
+openpyxl = "^3.1.5"
+duckdb = "^1.1.1"
+pyinstaller = "^6.10.0"
+
+
+[tool.poetry.group.dev.dependencies]
+ipykernel = "^6.29.5"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
