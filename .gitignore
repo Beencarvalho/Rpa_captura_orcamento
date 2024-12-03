@@ -1,6 +1,5 @@
-app/util/api_token.py
-api_token.py
-
+app/util/
+dist
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
