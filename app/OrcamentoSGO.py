@@ -150,7 +150,8 @@ df_geral = con.execute('''
         b.adjustmentPercentage AS Reajuste_Percentual,
         b.value AS Valor,
         b.supplier_code AS Cod_Fornecedor,
-        b.budgetAccount_description AS Conta_Contabil,
+        b.budgetAccount_code AS COD_CONTA_CONTABIL,
+        b.budgetAccount_description AS DEC_Conta_Contabil,
         b.supplier_description AS Fornecedor,
         b.origin_description AS Origem,
         bm.budgetApportionmentItem_sector_code AS COD_SETOR,
@@ -187,7 +188,7 @@ df_geral = con.execute('''
 df_grupo = con.execute('''
     SELECT
         b.cycle_budgetYear AS ANO,
-        b.budgetAccount_code AS COD_CODCONTA,
+        b.budgetAccount_code AS COD_CONTA,
         b.budgetAccount_description AS CONTA_N05,
         b.supplier_code AS COD_FORNECEDOR,
         b.supplier_description AS DES_FORNECEDOR,

@@ -5,6 +5,8 @@ import sys
 import time
 import os
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import Alignment, Border, Side, Font
 from util.api_token import api_budget, api_budget_months, headers
 
 def show_startup_animation():
@@ -35,6 +37,7 @@ def show_startup_animation():
             sys.stdout.flush()
             time.sleep(0.2)  # Delay entre os frames
     print("\n\nConexão estabelecida com sucesso!")
+    print("\n\nIniciando geração de arquivos:")
 
 # Chamar a função para exibir a animação
 show_startup_animation()
@@ -100,7 +103,7 @@ budget_months_list = []
 # Definindo o número máximo de tentativas para o caso de 429
 max_retries = 3
 
-# Barra de progresso com tqdm
+# Barra de progresso com tqdm - OBTENDO DADOS DA API POR ID
 with tqdm(total=len(budget), desc="Processando Orçamentos") as pbar:
     for budget_entry in budget:
         budget_id = budget_entry['id']
@@ -150,7 +153,8 @@ df_geral = con.execute('''
         b.adjustmentPercentage AS Reajuste_Percentual,
         b.value AS Valor,
         b.supplier_code AS Cod_Fornecedor,
-        b.budgetAccount_description AS Conta_Contabil,
+        b.budgetAccount_code AS COD_CONTA_CONTABIL,
+        b.budgetAccount_description AS DESC_CONTA_CONTABIL,
         b.supplier_description AS Fornecedor,
         b.origin_description AS Origem,
         bm.budgetApportionmentItem_sector_code AS COD_SETOR,
@@ -184,78 +188,103 @@ df_geral = con.execute('''
     JOIN budget_months bm ON b.id = bm.budgetId
 ''').fetchdf()
 
-df_grupo = con.execute('''
-    SELECT
-        b.cycle_budgetYear AS ANO,
-        b.budgetAccount_code AS COD_CODCONTA,
-        b.budgetAccount_description AS CONTA_N05,
-        b.supplier_code AS COD_FORNECEDOR,
-        b.supplier_description AS DES_FORNECEDOR,
-        b.levelSix_description AS "NIVEL 6",
-        b.origin_description AS ORIGEM,
-        b.contractNumber AS "Nº CONTRATO",
-        b.manager_description AS GESTOR,
-        bm.budgetApportionmentItem_sector_code AS COD_SETOR,
-        bm.budgetApportionmentItem_sector_codeCostCenter AS COD_CCUSTO,
-        bm.budgetApportionmentItem_sector_name AS CENTRO_CUSTO,
-        SUM(bm.budgetApportionmentItem_base) AS BASE,
-        MAX(b.adjustmentPercentage) AS "%",
-        SUM(COALESCE(bm.january, 0)) AS JANEIRO,
-        SUM(COALESCE(bm.february, 0)) AS FEVEREIRO,
-        SUM(COALESCE(bm.march, 0)) AS MARÇO,
-        SUM(COALESCE(bm.april, 0)) AS ABRIL,
-        SUM(COALESCE(bm.may, 0)) AS MAIO,
-        SUM(COALESCE(bm.june, 0)) AS JUNHO,
-        SUM(COALESCE(bm.july, 0)) AS JULHO,
-        SUM(COALESCE(bm.august, 0)) AS AGOSTO,
-        SUM(COALESCE(bm.september, 0)) AS SETEMBRO,
-        SUM(COALESCE(bm.october, 0)) AS OUTUBRO,
-        SUM(COALESCE(bm.november, 0)) AS NOVEMBRO,
-        SUM(COALESCE(bm.december, 0)) AS DEZEMBRO,
-        -- Soma total anual
-        SUM(
-            COALESCE(bm.january, 0) + COALESCE(bm.february, 0) + COALESCE(bm.march, 0) +
-            COALESCE(bm.april, 0) + COALESCE(bm.may, 0) + COALESCE(bm.june, 0) +
-            COALESCE(bm.july, 0) + COALESCE(bm.august, 0) + COALESCE(bm.september, 0) +
-            COALESCE(bm.october, 0) + COALESCE(bm.november, 0) + COALESCE(bm.december, 0)
-        ) AS TOTAL
-    FROM budget b
-    JOIN budget_months bm ON b.id = bm.budgetId
-    GROUP BY 
-        b.cycle_budgetYear,
-        b.budgetAccount_code,
-        b.budgetAccount_description,
-        b.supplier_code,
-        b.supplier_description,
-        b.levelSix_description,
-        b.origin_description,
-        b.contractNumber,
-        b.manager_description,
-        bm.budgetApportionmentItem_sector_code,
-        bm.budgetApportionmentItem_sector_codeCostCenter,
-        bm.budgetApportionmentItem_sector_name                     
-''').fetchdf()
+# Diretório para salvar os arquivos
+output_dir = os.path.join(os.path.expanduser("~"), "Desktop", "Arquivos_Contratos")
+os.makedirs(output_dir, exist_ok=True)
 
-# Salvando os resultados em arquivos Excel
-df_geral.to_excel(file_path_geral, index=False)
-if os.path.exists(file_path_geral):
-    print(f"\n\nArquivo {file_path_geral}, gerado com sucesso na sua Área de Trabalho.")
-    time.sleep(5)
-else:
-    print(f"\nFalha ao gerar o arquivo {file_path_geral}.")
+# Obtém a lista de budget IDs únicos
+budget_ids = df_geral["Id_Orçamento"].dropna().unique()
 
+# Caminho para salvar os arquivos
+desktop_path = os.path.join(os.path.expanduser("~"), "Desktop")
+output_folder = os.path.join(desktop_path, "Arquivos SGO")
 
-df_grupo.to_excel(file_path_grupo, index=False)
-if os.path.exists(file_path_grupo):
-    print(f"\n\nArquivo {file_path_grupo}, gerado com sucesso na sua Área de Trabalho.")
-    time.sleep(5)
-else:
-    print(f"\nFalha ao gerar o arquivo {file_path_grupo}.")
+# Certifique-se de que a pasta exista
+if not os.path.exists(output_folder):
+    os.makedirs(output_folder)
 
+for budget_id in budget_ids:
+    # Filtra o DataFrame para o budget ID atual
+    df_budget = df_geral[df_geral["Id_Orçamento"] == budget_id]
+    
+    # Verificação se o DataFrame está vazio
+    if df_budget.empty:
+        print(f"Atenção: Não foram encontrados dados para o Budget ID {budget_id}. Pulando para o próximo budget.")
+        continue  # Salta para o próximo budget no loop
 
-print('\n\n\nObrigado pela paciencia.')
+    # Obter dados principais do budget para o cabeçalho
+    criterio = df_budget["Criterio"].iloc[0]
+    cod_conta_contabil = df_budget["COD_CONTA_CONTABIL"].iloc[0]
+    desc_conta_contabil = df_budget["DESC_CONTA_CONTABIL"].iloc[0]
+    fornecedor = df_budget["Fornecedor"].iloc[0]
+    reajuste_percentual = df_budget["Reajuste_Percentual"].iloc[0]
+    mes_reajuste = df_budget["Mes_Reajuste"].iloc[0]
+    descricao_criterio = df_budget["Descricao_criterio"].iloc[0]
 
-# Fechando a conexão com o banco de dados DuckDB
-con.close()
+    # Nome do arquivo personalizado
+    safe_criterio = criterio.replace("/", "_").replace("\\", "_").replace(" ", "_")
+    safe_fornecedor = fornecedor.replace("/", "_").replace("\\", "_").replace(" ", "_") #separar só a primeiro nome
+    file_name = f"2025_{safe_fornecedor}_{budget_id}.xlsx"
+    file_path = os.path.join(output_folder, file_name)
 
-time.sleep(10)
+    # Cálculo do percentual baseado na BASE
+    total_base = df_budget["BASE"].sum()
+    df_budget = df_budget.copy()
+    df_budget["Percentual"] = (
+        (df_budget["BASE"] / total_base) * 100 if total_base != 0 else 0
+    )
+
+    # Criando o Excel
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        # Criando o workbook e aba principal com título único
+        workbook = writer.book
+        aba_title = safe_fornecedor
+        worksheet = workbook.create_sheet(title=aba_title)
+
+        # Remover aba padrão criada automaticamente
+        if "Sheet" in workbook.sheetnames:
+            del workbook["Sheet"]
+
+        # Adiciona o cabeçalho (linhas 1-4)
+        worksheet.merge_cells("A1:C1")
+        worksheet.merge_cells("A2:C2")
+        worksheet["A1"] = "Critério"
+        worksheet["A2"] = criterio
+
+        worksheet["D1"] = "Conta Contábil"
+        worksheet["D2"] = cod_conta_contabil
+
+        worksheet.merge_cells("E1:F1")
+        worksheet.merge_cells("E2:F2")
+        worksheet["E1"] = "Descrição de Conta"
+        worksheet["E2"] = desc_conta_contabil
+
+        # Linha 3
+        worksheet.append(["NR_CONTRATO", "CD_FORNECEDOR", "NM_FORNECEDOR", "Mês Reajuste", "% de Reajuste", "Regra"])
+        worksheet.append([
+            "", fornecedor, "", mes_reajuste, f"{reajuste_percentual:.2f}%", descricao_criterio
+        ])
+
+        # Deixe as linhas 5 a 8 vazias
+        for _ in range(2):
+            worksheet.append([])
+
+        # Adiciona o cabeçalho da tabela principal (a partir da linha 6)
+        header = ["EMPRESA", "COD_SETOR", "COD_CCUSTO", "CENTRO_CUSTO", "BASE", "PERCENTUAL",
+                  "JANEIRO", "FEVEREIRO", "MARÇO", "ABRIL", "MAIO", "JUNHO",
+                  "JULHO", "AGOSTO", "SETEMBRO", "OUTUBRO", "NOVEMBRO", "DEZEMBRO", "TOTAL_ANUAL"]
+        worksheet.append(header)
+
+        # Adiciona os dados da tabela principal
+        for _, row in df_budget.iterrows():
+            worksheet.append([
+                row["EMPRESA"], row["COD_SETOR"], row["COD_CCUSTO"], row["CENTRO_CUSTO"],
+                row["BASE"], f"{row['Percentual']:.2f}%",
+                row["Janeiro"], row["Fevereiro"], row["Março"], row["Abril"], row["Maio"], row["Junho"],
+                row["Julho"], row["Agosto"], row["Setembro"], row["Outubro"], row["Novembro"], row["Dezembro"],
+                row["Total_Anual"]
+            ])
+
+    print(f"Arquivo gerado para Budget ID {budget_id}: {file_path}")
+
+print("Processamento concluído.")
